@@ -21,39 +21,27 @@ val height = 480
 val LEFT = buffer
 val RIGHT = width - 3*buffer
 val MIDDLE = (LEFT + RIGHT)/2
+
+lateinit var music: Sound
+lateinit var fail: Sound
+var musicChannel: SoundChannel? = null
+var failChannel: SoundChannel? = null
 suspend fun main() = Korge(Korge(windowSize = Size(width, height))) { // this:
-    val music = resourcesVfs["nastyv2.mp3"].readSound().play()
+    music = resourcesVfs["nastyv2.mp3"].readSound()
+    fail = resourcesVfs["fail.mp3"].readSound()
     val text = text("0", textSize = 32f)
     val obstacle = solidRect(200, 100)
     val ball = circle(buffer, Colors.PURPLE)
     val startButton = text("Старт", textSize = 32f, fill = Colors.GREEN)
     val c = 0
 
-    val scope = CoroutineScope(Dispatchers.Default)
-    val job = launch {
-        delay(1000)
-    }
-    delay(500)
-    job.cancel()
-    job.join()
-
-    val job2 = async(scope.coroutineContext) {
-        delay(1000)
-    }
-    delay(500)
-    scope.coroutineContext.cancelChildren()
-    try {
-        job2.join()
-    } catch (e: Throwable) {
-        println(e)
-    }
-
-
     setupStage(text, obstacle, ball, startButton)
     setupControls(ball)
 
     // start game on click
     startButton.onClick {
+        failChannel?.stop()
+        musicChannel = music.play()
         gameLoop(obstacle, ball, text, startButton, c)
     }
 }
@@ -67,8 +55,13 @@ private suspend fun Stage.gameLoop(obstacle: SolidRect, ball: Circle, text: Text
         tryCatch {
             val job = obstacle.tweenAsync(obstacle::y[height]) // drop down
             ball.onCollision({ it == obstacle }) {
-                if (ball.fill == Colors.PURPLE)
+                if (ball.fill == Colors.PURPLE) {
                     ball.fill = Colors.BLUE
+                    CoroutineScope(Dispatchers.Default).launch {
+                        musicChannel?.stop()
+                        failChannel = fail.play()
+                    }
+                }
                 if (job.isActive)
                     job.cancel()
             }
